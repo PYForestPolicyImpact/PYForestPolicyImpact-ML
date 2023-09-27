@@ -13,3 +13,4 @@ DATA_PATH = os.path.join(PROJECT_PATH,'data','policy-data')
 # The larger study area to use for earth engine this study uses the western region of paraguay
 STUDY_BOUNDARY_PATH = os.path.join(DATA_PATH, 'study_boundary', 'study_boundary.shp')
 
+LUP_13 =  os.path.join(DATA_PATH, 'active_inactive_subsets', 'active_inactive_13.gpkg')
