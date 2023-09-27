@@ -208,7 +208,7 @@ export_task.start()
 # %%
 export_params = {
     'scale': 30, # Resolution in meters
-    'region': ee_boundary, # Export only the region of interest
+    'region': ee_boundary_coordinates, # Export only the region of interest
     'crs': 'EPSG:4326', # Coordinate reference system (optional)
     'fileFormat': 'GeoTIFF', # Export format (GeoTIFF or other supported formats)
     'fileNamePrefix': 'clipped_hansen_dataset', # Prefix for the exported file name

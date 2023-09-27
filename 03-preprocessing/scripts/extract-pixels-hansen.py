@@ -42,10 +42,7 @@ sys.path.append(project_root)
 
 
 # %%
-from constants import HANSEN_LOSSYEAR_FILEPATH, STUDY_BOUNDARY_PATH, OUTPUT_PATH
-
-# %%
-OUTPUT_PATH
+from constants import HANSEN_LOSSYEAR_FILEPATH, STUDY_BOUNDARY_PATH, OUTPUT_PATH, HANSEN_TREECOVER_FILEPATH
 
 # %%
 study_boundary_gdf = gpd.read_file(STUDY_BOUNDARY_PATH)
@@ -123,7 +120,7 @@ as the key.'''
 #if `year_pixels[year_pixels == 0] = np.nan` is removed then will return 
 # Unique values for year 2011: [0 1]. 
 
-def extract_pixels_by_year_binary(raster_data, start_year, end_year):
+'''def extract_pixels_by_year_binary(raster_data, start_year, end_year):
     year_data = {}
     for year in range(start_year, end_year + 1):
         year_pixels = (raster_data == year).astype(int) 
@@ -134,7 +131,7 @@ def extract_pixels_by_year_binary(raster_data, start_year, end_year):
         print(f"Unique values for year {year + 2000}: {unique_values}") # Add 2000 to the year to get the correct year values
     return year_data
 
-pixels_by_year = extract_pixels_by_year_binary(hansen_array, 0, 21)
+pixels_by_year = extract_pixels_by_year_binary(hansen_array, 22, 22)'''
 
 '''While iterating through the years, the function also prints unique values for 
 each year's binary mask. These unique values should be either 0 or 1, 
@@ -167,6 +164,8 @@ pixels_by_year = extract_pixels_by_year(hansen_array, 11, 21)
 
 
 # %%
+'''cumulative binary mask for each year, where the mask indicates which pixels match the current year 
+or any previous year within the given range. pixels had an event in that year or any year before it.'''
 '''def extract_pixels_by_year_cumulative(raster_data, start_year, end_year):
     year_data = {}
     cumulative_pixels = np.zeros_like(raster_data, dtype=int)
@@ -181,7 +180,26 @@ pixels_by_year = extract_pixels_by_year(hansen_array, 11, 21)
         print(f"Unique values for year {year + 2000}: {unique_values}") # Add 2000 to the year to get the correct year values
     return year_data
 
-pixels_by_year = extract_pixels_by_year_cumulative(hansen_array, 1, 21)'''
+pixels_by_year = extract_pixels_by_year_cumulative(hansen_array, 1, 22)'''
+
+
+# %%
+def extract_10year_deforestation(raster_data, start_year):
+    cumulative_pixels = np.zeros_like(raster_data, dtype=int)
+    
+    # Loop through the 10-year interval
+    for year in range(start_year, start_year + 10):
+        year_pixels = (raster_data == year).astype(int)
+        cumulative_pixels += year_pixels
+
+    return cumulative_pixels
+
+# Create a dictionary to store the 10-year datasets
+ten_year_datasets = {}
+
+# Loop through the years to generate the 10-year datasets
+for start_year in range(1, 14):  # 1-10, 2-11, ... , 13-22
+    ten_year_datasets[start_year] = extract_10year_deforestation(hansen_array, start_year)
 
 
 # %% [markdown]
@@ -204,15 +222,48 @@ def write_year_rasters(year_data, out_transform, out_meta, output_dir):
             dst.write(data, 1)
             dst.transform = out_transform
 
-output_dir = os.path.join(OUTPUT_PATH[0], 'deforestation_by_year_cumulative')
+output_dir = os.path.join(OUTPUT_PATH, 'deforestation_by_year_binary')
+os.makedirs(output_dir, exist_ok=True)
+
+write_year_rasters(pixels_by_year, out_transform, out_meta, output_dir)
+
+# %%
+# Write raster files for each year
+def write_year_rasters(year_data, out_transform, out_meta, output_dir):
+    for year, data in year_data.items():
+        out_filepath = os.path.join(output_dir, f'deforestation_{year}-cumulative.tif')
+        with rasterio.open(out_filepath, 'w', **out_meta) as dst:
+            dst.write(data, 1)
+            dst.transform = out_transform
+
+output_dir = os.path.join(OUTPUT_PATH, 'deforestation_by_year_cumulative')
 os.makedirs(output_dir, exist_ok=True)
 
 write_year_rasters(pixels_by_year, out_transform, out_meta, output_dir)
 
 
 # %%
+# Write raster files for 10-year intervals
+def write_10year_rasters(year_data, out_transform, out_meta, output_dir):
+    for start_year, data in year_data.items():
+        # Adjust the naming convention to reflect the 10-year interval
+        end_year = start_year + 9
+        out_filepath = os.path.join(output_dir, f'deforestation_{start_year}-{end_year}.tif')
+        with rasterio.open(out_filepath, 'w', **out_meta) as dst:
+            dst.write(data, 1)
+            dst.transform = out_transform
+
+# Define the output directory
+output_dir = os.path.join(OUTPUT_PATH, 'deforestation_10year_intervals')
+os.makedirs(output_dir, exist_ok=True)
+
+# Call the adjusted function
+write_10year_rasters(ten_year_datasets, out_transform, out_meta, output_dir)
+
+
+# %%
 # Read one of the TIF files and print its unique values
-with rasterio.open("/Users/romero61/../../capstone/pyforest/ml_data/output/deforestation_by_year_cumulative/deforestation_1.tif") as src:
+with rasterio.open("") as src:
     data = src.read(1)
 print("Unique values in uncropped TIF:", np.unique(data))
 
@@ -227,7 +278,7 @@ print("Unique values in uncropped TIF:", np.unique(data))
 
 # %%
 # Step 1: Read the tree cover raster data
-with rasterio.open(HANSEN_TREECOVER_FILEPATH[0]) as src:
+with rasterio.open(HANSEN_TREECOVER_FILEPATH) as src:
     tree_cover_array = src.read(1)
     tree_cover_transform = src.transform
     tree_cover_meta = src.meta
@@ -240,7 +291,7 @@ tree_cover_threshold = 10
 masked_array = np.where(tree_cover_array >= tree_cover_threshold, tree_cover_array, 0)
 
 # Step 3: Write the masked array to a new raster file
-output_dir = os.path.join(OUTPUT_PATH[0], 'tree_cover_10_percent_and_above')
+output_dir = os.path.join(OUTPUT_PATH, 'tree_cover_10_percent_and_above')
 os.makedirs(output_dir, exist_ok=True)
 
 output_filepath = os.path.join(output_dir, 'tree_cover_10_percent_and_above.tif')

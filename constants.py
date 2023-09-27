@@ -15,4 +15,10 @@ STUDY_BOUNDARY_PATH = os.path.join(DATA_PATH, 'study_boundary', 'study_boundary.
 
 HANSEN_LOSSYEAR_FILEPATH =  os.path.join(DATA_PATH, 'raw-hansen', 'clipped_hansen_lossyear22.tif')
 
-OUTPUT_PATH = os.path.join(DATA_PATH, 'raw-hansen','binary-year')
+OUTPUT_PATH = os.path.join(DATA_PATH, 'raw-hansen')
+
+HANSEN_TREECOVER_FILEPATH =  os.path.join(DATA_PATH, 'raw-hansen', 'clipped_hansen_treecover2000.tif')
+
+LIMIT = os.path.join(DATA_PATH,'lup-limit','limite_put.shp')
+
+LUP = os.path.join(DATA_PATH,'lup-limit','catastro_forestal.shp')
