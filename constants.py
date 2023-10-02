@@ -22,3 +22,6 @@ HANSEN_TREECOVER_FILEPATH =  os.path.join(DATA_PATH, 'raw-hansen', 'clipped_hans
 LIMIT = os.path.join(DATA_PATH,'lup-limit','limite_put.shp')
 
 LUP = os.path.join(DATA_PATH,'lup-limit','catastro_forestal.shp')
+
+LIMIT_SUBSET = os.path.join(DATA_PATH,'preprocessing', 'limit-subset.gpkg')
+
