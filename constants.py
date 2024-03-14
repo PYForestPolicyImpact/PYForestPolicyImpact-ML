@@ -36,18 +36,22 @@ LUP_PRELABEL = os.path.join(DATA_PATH, 'processing','lup_output', 'almost_finish
 
 LUP_LABELED =  os.path.join(DATA_PATH, 'processing','lup_output', 'labeled_dataset.gpkg')
 
-HANSEN_REPROJECTED = os.path.join(DATA_PATH, 'processing','hansen_output', 'hansen_reprojected.tiff')
+HANSEN_TEN_MASK = os.path.join(DATA_PATH, 'raw-hansen','hansen_processed', 'hansen_22_masked_10_above.tif')
 
-
+CROPPED_HANSEN_TEN_MASK = os.path.join(DATA_PATH, 'processed_rasters','cropped_hansen_ten_mask.tif')
 
 CLEAN = os.path.join(DATA_PATH, 'processing', 'clean.gpkg')
 
 DISSOLVED =  os.path.join(DATA_PATH, 'processing', 'dissolved_year.gpkg')
 
+DISSOLVED_CLEAN_YEAR = os.path.join(DATA_PATH, 'processing', 'dissolved_clean_years.gpkg')
 
-MODIFIED_RASTER = os.path.join(DATA_PATH, 'processing','hansen_output', 'final_modified_raster.tif')
+
+MODIFIED_RASTER = os.path.join(DATA_PATH, 'ml_data', 'final_modified_raster0.tif')
 
 GRUPO_RASTER =  os.path.join(DATA_PATH, 'processed_rasters','grupo', 'output_grupo_raster.tif')
 
 
 DF_BY_YEAR_BINARY = os.path.join(DATA_PATH, 'raw-hansen', 'clipped_hansen_treecover2000.tif', 'deforestation_by_year_binary')
+
+SOIL = os.path.join(DATA_PATH, 'merged_soil.tif')
