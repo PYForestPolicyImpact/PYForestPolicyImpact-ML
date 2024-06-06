@@ -166,3 +166,12 @@ cython_debug/
 *05-outputs/models
 04-models/brfc_model.pkl
 04-models/preprocessor.pkl
+04-models/X_preprocessed_train.pkl
+04-models/X_test.pkl
+04-models/X_train.pkl
+04-models/y_test.pkl
+04-models/y_train.pkl
+04-models/X_test.zip
+04-models/X_train.zip
+04-models/y_test.zip
+04-models/y_train.zip
