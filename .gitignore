@@ -164,3 +164,5 @@ cython_debug/
 *03-preprocessing/resampled_soil.tif
 *03-preprocessing/resampled_ports.tif
 *05-outputs/models
+04-models/brfc_model.pkl
+04-models/preprocessor.pkl
