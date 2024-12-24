@@ -1,0 +1,637 @@
+---
+title: "Question 1"
+editor: visual
+---
+
+Load Libraries
+
+```{r}
+library(sf)
+library(tidyverse)
+library(terra) 
+library(raster)
+library(tmap)
+library(leaflet)
+library(ggplot2)
+library(units)
+```
+
+# Boundary Data
+
+## Study Boundary
+
+```{r}
+# Study boundary 
+study_boundary <- st_read("data/study_boundary/study_boundary.shp") %>%
+  st_make_valid() %>%
+  mutate(area = set_units(st_area(geometry),
+                          "acre"))
+
+# Define the CRS of study_boundary
+# EPSG:4326
+crs_study_boundary <- st_crs(study_boundary)
+```
+
+## LUP Subsets
+
+```{r}
+# EPSG:32721
+# Unions the geoms and calculates area
+
+# Create an empty list to store the active_lup objects
+active_lup_list <- list()
+
+# Define the range of years you want to repeat until (2000 to 2022)
+start_year <- 2000
+end_year <- 2022
+
+# Loop through each year and read the shapefile
+for (year in start_year:end_year) {
+  # Construct the file path based on the year
+  file_path <- paste0("data/active_properties/active_lup_", year, ".shp")
+  
+  # Read the shapefile
+  active_lup <- st_read(file_path)
+  
+  # Perform st_union on the entire geometry collection
+  unioned_geometry <- st_union(active_lup)
+  
+  # Convert the unioned geometry back to an sf object
+  unioned_sf <- st_as_sf(data.frame(geometry = unioned_geometry), crs = st_crs(active_lup))
+  
+  # Calculate the area in acres
+  unioned_sf <- unioned_sf %>%
+    mutate(area = set_units(st_area(geometry), 
+                            "acre"),
+           year = year)
+  
+  # Store the processed shapefile in the list
+  active_lup_list[[year - start_year + 1]] <- unioned_sf
+}
+
+# Assign the processed shapefiles to individual variables
+for (i in seq_along(active_lup_list)) {
+  assign(paste0("active_lup_", i + start_year - 1), active_lup_list[[i]])
+}
+
+crs_lups <- st_crs(active_lup_2000)
+```
+
+```{r}
+# # Reads in data but does not union geoms or calculate area
+# # Create an empty list to store the active_lup objects
+# active_lup_list <- list()
+# 
+# # Define the range of years you want to repeat until (2000 to 2022)
+# start_year <- 2000
+# end_year <- 2022
+# 
+# # Loop through each year and read the shapefile
+# for (year in start_year:end_year) {
+#   # Construct the file path based on the year
+#   file_path <- paste0("data/active_properties/active_lup_", year, ".shp")
+#   
+#   # Read the shapefile and store it in the list
+#   active_lup <- st_read(file_path)
+#   active_lup_list[[year - start_year + 1]] <- active_lup
+# }
+# 
+# # Assign the shapefiles to individual variables 
+# for (i in seq_along(active_lup_list)) {
+#   assign(paste0("active_lup_", i + start_year - 1), active_lup_list[[i]])
+# }
+# 
+# crs_lups <- st_crs(active_lup_2000)
+```
+
+```{r}
+## Summarize and visualize 
+summarize_lups <- function(sf_object, year) {
+  data.frame(year = year,
+             area = sum(sf_object$area))
+}
+
+# Combine all into a single df
+summary_table <- bind_rows(lapply(start_year:end_year, 
+                                       function(year) summarize_lups(get(paste0("active_lup_", year)), 
+                                                                        year)))
+
+
+# Convert area to numeric (removing the [acre] suffix)
+summary_table$area <- as.numeric(gsub(" \\[acre\\]", "", summary_table$area))
+
+# Create the line and point chart
+ggplot(summary_table, aes(x = year, 
+                          y = area)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Land Use Plan Area (2000-2022)",
+       x = "Year",
+       y = "LUP Area (acres)") +
+  theme_minimal()
+```
+
+## Protected Areas
+
+```{r}
+# Load protected area data
+
+# # Wildlife protected areas
+# wildlife_protected_areas <- st_read("data/wildlife_protected_areas/ASP_ROCC.shp") %>%
+#   st_make_valid() %>%
+#   # or by study boundary??
+#   st_transform(crs_lups)
+# 
+# # Indigenous lands
+# indigenous_lands <- st_read("data/indigenous_lands/indigenous_lands.shp") %>%
+#   st_make_valid() %>%
+#   st_transform(crs_lups)
+# 
+# # Urban areas
+# urban_areas <- st_read("data/urban_areas/urban_areas.shp") %>%
+#   st_make_valid() %>%
+#   st_transform(crs_lups) %>%
+#   st_make_valid()
+
+# New protected areas shapefile from Ata 
+
+file_path <- "/Users/alexreed/Documents/pyforest-paper/pyforest_paper_AR/data/protected_areas/Protected_Areas.gpkg"
+
+# List all the layers available in the GeoPackage file
+st_layers(file_path)
+# "Protected_Areas_Wildlife_IT. The last one is a combo of the first three layers, with a simplified database translated into English."
+
+# Read the specific layer
+protected_areas <- st_read(file_path, layer = "Protected_Areas_Wildlife_IT") %>%
+  st_make_valid()
+
+
+# Intersect with study boundary 
+chaco_protected_areas <- st_intersection(protected_areas, study_boundary) 
+
+
+# Change crs of study boundary
+study_boundary <- 
+  study_boundary %>%
+  st_make_valid() %>%
+  # necessary?
+  st_transform(crs_lups)
+
+chaco_protected_areas <- chaco_protected_areas %>%
+  st_make_valid() %>%
+  #transform to lup crs
+  st_transform(crs_lups)  
+```
+
+## Other boundarires
+
+```{r}
+
+# Department boundaries
+departments <- st_read("data/political_boundaries/departamento.shp") %>%
+  st_transform(crs_lups) %>%
+  st_make_valid()
+
+# District boundaries
+districts <- st_read("data/political_boundaries/distritos.shp") %>%
+  st_transform(crs_lups) %>%
+  st_make_valid()
+
+# intersect with study boundary
+chaco_departments <- st_intersection(departments, study_boundary)
+  
+chaco_districts <- st_intersection(districts, study_boundary)
+
+
+# Developed region
+developed_region <- st_read("data/developed_region/developed_region.gpkg") %>% 
+  st_transform(crs_lups) %>%
+  st_make_valid()
+
+# roads
+roads <- st_read("data/roads/dissolved_road.gpkg") %>% 
+  st_transform(crs_lups) %>%
+  st_make_valid()
+
+# rivers  
+rivers <- st_read("data/rivers/river_buffer.gpkg") %>% 
+  st_transform(crs_lups) %>%
+  st_make_valid()
+```
+
+### Map of Boundaries
+
+```{r}
+tmap_options(check.and.fix = TRUE) 
+tmap_mode("view")
+
+# Within study boundary (Chaco region)
+
+# study boundary
+tm_shape(study_boundary) +
+  tm_borders(col = "black",
+             lwd = 2) +
+# # wildlife protection areas  
+# tm_shape(chaco_wildlife_pa) +
+#   tm_polygons(col = "darkgreen") +
+# # urban areas 
+# tm_shape(chaco_urban_areas) +
+#   tm_polygons(col = "grey") +
+# # indigenous lands
+# tm_shape(chaco_indigenous_lands) +
+#   tm_polygons(col = "red") +
+# protected_areas
+tm_shape(chaco_protected_areas) +
+  tm_polygons(col = "darkgreen") +
+# active properties in 2022
+tm_shape(active_lup_2022) +
+  tm_polygons(col = "lightyellow") +
+# chaco departments
+tm_shape(chaco_departments) +
+  tm_polygons(col = "red") +
+# chaco districts
+tm_shape(chaco_districts) +
+  tm_polygons(col = "green") +
+# developed regions
+tm_shape(developed_region) +
+  tm_polygons(col = "pink") +
+# roads
+tm_shape(roads) +
+  tm_polygons(col = "darkgrey") +
+# rivers
+tm_shape(rivers) +
+  tm_polygons(col = "blue") 
+```
+
+# Forest Cover Data
+
+```{r}
+# Not using - Mapbiomas 
+# 0 = forest in 2000 (never been deforested)
+# 1 = deforested 
+# mb_13 <- terra::rast("data/mb_data/clipped_dataset13.tif")
+# mb_14 <- terra::rast("data/mb_data/clipped_dataset14.tif")
+# mb_15 <- terra::rast("data/mb_data/clipped_dataset15.tif")
+# mb_16 <- terra::rast("data/mb_data/clipped_dataset16.tif")
+# mb_17 <- terra::rast("data/mb_data/clipped_dataset17.tif")
+# mb_18 <- terra::rast("data/mb_data/clipped_dataset18.tif")
+# mb_19 <- terra::rast("data/mb_data/clipped_dataset19.tif")
+# mb_20 <- terra::rast("data/mb_data/clipped_dataset20.tif")
+# mb_21 <- terra::rast("data/mb_data/clipped_dataset21.tif")
+# mb_22 <- terra::rast("data/mb_data/clipped_dataset22.tif")
+# 
+# plot(mb_13)
+```
+
+```{r}
+# Hansen forest cover provided by Guillermo
+# 1 = forest 
+# NA = not forest
+
+## test
+# fc_00 <- terra::rast("data/treecover_years/updated_tree_cover_2000.tif")
+# fc_01 <- terra::rast("data/treecover_years/updated_tree_cover_2001.tif")
+
+# Loop to load data for multiple years
+for (year in 2000:2022) {
+  file_path <- paste0("data/treecover_years/updated_tree_cover_", year, ".tif")
+  raster_name <- paste0("fc_", year)
+  # currently using terra but used raster also - so you may see code below that has raster functions instead of terra
+  assign(raster_name, rast(file_path))
+}
+```
+
+## FC Calculations
+
+```{r}
+# are the cells 30 by 30?
+
+# Calculate the area of forest within each raster cell for the year 2022
+# In square meters???
+
+# Test for function below
+forest_area_00 <- sum(fc_2000[fc_2000 == 1], na.rm = TRUE) * 30 * 30
+
+# Convert square meters to hectares
+forest_area_hectares_00 <- forest_area_00 / 10000
+
+forest_area_hectares_00
+```
+
+```{r}
+# don't need to run - saved result as a .rds
+# Vector to store the forest area in hectares for each year
+forest_areas_hectares <- numeric(23) # since 2000 to 2022 is 23 years
+
+# Loop over each year from 2000 to 2022
+for (year in 2000:2022) {
+  # Object with current year
+  raster_var_name <- paste0("fc_", year)
+  
+  # Evaluate the variable to get the raster
+  raster_data <- get(raster_var_name)
+  
+  # Calculate the forest area in square meters
+  forest_area_sq_meters <- sum(raster_data[raster_data == 1], na.rm = TRUE) * 30 * 30
+  
+  # Convert square meters to hectares
+  forest_area_hectares <- forest_area_sq_meters / 10000
+  
+  # Store the result in the vector
+  forest_areas_hectares[year - 1999] <- forest_area_hectares
+}
+
+years <- 2000:2022
+names(forest_areas_hectares) <- years
+forest_areas_hectares
+
+forest_area_df <- data.frame(
+  Year = years,
+  Hectares = forest_areas_hectares
+)
+
+# Save df as .rds file
+saveRDS(forest_area_df, "forest_area_hectares_2000_2022.rds")
+```
+
+```{r}
+forest_area_df <- readRDS("forest_area_hectares_2000_2022.rds")
+
+ggplot(forest_area_df, aes(x = Year, y = Hectares)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Forest Cover in Hectares (2000-2022)",
+       x = "Year",
+       y = "Forest Area (Hectares)") +
+  theme_minimal()
+```
+
+### trash probably
+
+```{r}
+
+# Crop the raster to the study boundary
+fc_2001_cropped <- crop(fc_2001, study_boundary)
+
+# Count the number of pixels with value 1
+tree_pixels <- sum(fc_2001_cropped[] == 1, na.rm = TRUE)
+
+# Count the number of NA pixels
+na_pixels <- sum(is.na(fc_2001_cropped[]))
+
+# Total number of pixels
+total_pixels <- ncell(fc_2001_cropped)
+
+# Print the results
+cat("Number of tree pixels:", tree_pixels, "\n")
+cat("Number of NA pixels:", na_pixels, "\n")
+cat("Total number of pixels:", total_pixels, "\n")
+
+
+# Create a logical mask for canopy cells
+canopy_mask <- fc_2001_cropped == 1
+
+# # Replace NA values in the mask with FALSE
+# canopy_mask[is.na(canopy_mask)] <- FALSE
+
+#  Calculate the area of each pixel in square meters
+pixel_area_m2 <- prod(res(fc_2001_cropped))
+
+# Calculate the count of canopy cells
+canopy_count <- sum(fc_2001_cropped[] == 1, na.rm = TRUE)
+
+# Calculate the total area of canopy cells within the study boundary in square meters
+canopy_area_m2 <- canopy_count * pixel_area_m2
+
+# Convert canopy area from square meters to acres
+canopy_area_acres <- canopy_area_m2 * 0.000247105  # Convert square meters to acres
+
+# Print the result
+cat("Acres of canopy within the study boundary:", canopy_area_acres, "\n")
+
+# Calculate the area of each pixel in square meters
+pixel_area_m2 <- prod(res(fc_2001_cropped))
+
+# Calculate the count of canopy cells within the study boundary
+canopy_count <- sum(fc_2001_cropped[] == 1, na.rm = TRUE)
+
+# Calculate the total canopy area within the study boundary in square meters
+canopy_area_m2 <- canopy_count * pixel_area_m2
+
+# Convert canopy area from square meters to acres
+canopy_area_acres <- canopy_area_m2 * 0.000247105  # Convert square meters to acres
+
+# Print the result
+cat("Acres of canopy within the study boundary:", canopy_area_acres, "\n")
+
+
+
+values_within_boundary <- extract(intersection_00, study_boundary)
+
+# Calculate the total number of pixels within the boundary
+total_pixels <- ncell(fc_2001_cropped)
+
+# Calculate the count of tree canopy cells (cells with value 1)
+tree_canopy_count <- sum(values_within_boundary == 1, na.rm = TRUE)
+
+# Calculate the percentage of tree canopy coverage
+tree_canopy_percent <- (tree_canopy_count / total_pixels) * 100
+
+
+
+# Convert SpatRaster to regular R matrix
+fc_2000_matrix <- as.matrix(fc_2000)
+
+
+```
+
+```{r}
+study_boundary_utm <- st_transform(study_boundary, crs = 32721)
+# Reproject the raster data to EPSG 32721
+raster_data_utm <- projectRaster(fc_2001, crs = "+init=EPSG:32721")
+
+# Check the new CRS
+crs(raster_data_utm)
+
+# Crop the raster data to the extent of the study boundary
+raster_cropped <- crop(raster_data_utm, extent(study_boundary_utm))
+# Convert NA values to 0
+raster_cropped[is.na(raster_cropped)] <- 0
+# Calculate the area of forest within the study boundary
+forest_area <- sum(getValues(raster_cropped) == 1) * res(raster_cropped)[1] * res(raster_cropped)[2]
+
+# Convert the area to hectares (1 hectare = 10000 square meters)
+forest_area_hectares <- forest_area / 10000
+
+# Print the forest area in hectares
+print(forest_area_hectares)
+
+df <- data.frame(boundary = "study boundary", year = 2001, forest_area_ha = forest_area_hectares)
+
+# Save the data frame as an RDS file
+saveRDS(df, file = "forest_data.rds")
+```
+
+```{r}
+study_boundary_utm <- st_transform(study_boundary, crs = 32721)
+# Reproject the raster data to EPSG 32721
+raster_data_utm <- projectRaster(fc_2002, crs = "+init=EPSG:32721")
+
+# Check the new CRS
+crs(raster_data_utm)
+
+# Crop the raster data to the extent of the study boundary
+raster_cropped <- crop(raster_data_utm, extent(study_boundary_utm))
+# Convert NA values to 0
+raster_cropped[is.na(raster_cropped)] <- 0
+# Calculate the area of forest within the study boundary
+forest_area <- sum(getValues(raster_cropped) == 1) * res(raster_cropped)[1] * res(raster_cropped)[2]
+
+# Convert the area to hectares (1 hectare = 10000 square meters)
+forest_area_hectares <- forest_area / 10000
+
+# Print the forest area in hectares
+print(forest_area_hectares)
+```
+
+```{r}
+# Transform the study boundary to EPSG 32721
+study_boundary_utm <- st_transform(study_boundary, crs = 32721)
+
+# Create an empty data frame to store the results
+results <- data.frame(year = integer(), forest_area_ha = numeric())
+
+# Loop through each raster
+for (year in 2002:2022) {
+    # Get the name of the raster variable
+    raster_name <- paste0("fc_", year)
+    
+    # Reproject the raster data to EPSG 32721
+    raster_data_utm <- projectRaster(get(raster_name), crs = "+init=EPSG:32721")
+    
+    # Crop the raster data to the extent of the study boundary
+    raster_cropped <- crop(raster_data_utm, extent(study_boundary_utm))
+    
+    # Convert NA values to 0
+    raster_cropped[is.na(raster_cropped)] <- 0
+    
+    # Calculate the area of forest within the study boundary
+    forest_area <- sum(getValues(raster_cropped) == 1) * res(raster_cropped)[1] * res(raster_cropped)[2]
+    
+    # Convert the area to hectares (1 hectare = 10000 square meters)
+    forest_area_hectares <- forest_area / 10000
+    
+    # Add the year and forest area to the results data frame
+    results <- rbind(results, data.frame(year = year, forest_area_ha = forest_area_hectares))
+}
+
+# Print the results data frame
+print(results)
+
+```
+
+```{r}
+library(stars)
+
+fc_2001_cropped <- crop(fc_2001, study_boundary)
+
+fc_2001_stars <- 
+  st_as_stars(fc_2001_cropped)
+
+fc_2001_sf <-
+  st_as_sf(x = fc_2001_stars,
+           na.rm = TRUE,
+           merge= TRUE) 
+
+
+c# Get the number of rows and columns
+nrows <- nrow(fc_2001)
+ncols <- ncol(fc_2001)
+
+# Set the chunk size (adjust as needed)
+chunk_size <- 1000  # Adjust this based on your memory constraints
+
+# Process the raster in chunks
+for (i in seq(1, nrow(study_boundary), by = chunk_size)) {
+  for (j in seq(1, nrow(study_boundary), by = chunk_size)) {
+    # Define the chunk extent
+    chunk_extent <- st_bbox(study_boundary[i:min(i + chunk_size - 1, nrow(study_boundary)), ])
+    
+    # Crop the raster to the chunk extent
+    fc_2001_cropped <- crop(fc_2001, chunk_extent)
+    
+    # Convert the cropped raster to stars
+    fc_2001_stars <- as.stars(fc_2001_cropped)
+    
+    # Convert stars to sf
+    fc_2001_sf <- st_as_sf(fc_2001_stars,
+                           na.rm = TRUE,
+                           merge = TRUE)
+    
+    # Do further processing on the chunk if needed
+    
+    # Save or export the results
+    
+    # Clear memory
+    rm(fc_2001_cropped, fc_2001_stars, fc_2001_sf)
+  }
+}
+```
+
+```{r}
+library(terra)
+
+# Convert NA to 0 and other values to 1
+fc_2001_binary <- ifel(is.na(fc_2001), 0, 1)
+
+fc_2001_cropped <- crop(fc_2001_binary, study_boundary)
+
+# Set the projection to UTM zone 21 (EPSG:32621)
+crs(fc_2001_cropped) <- "+proj=utm +zone=21 +datum=WGS84"
+
+# Calculate the area of each cell in square meters
+cell_size_m2 <- cellSize(fc_2001_cropped)[1] * cellSize(fc_2001_cropped)[2]
+
+# Initialize total canopy area
+total_canopy_area_m2 <- 0
+
+# Define chunk size (number of cells to process at once)
+chunk_size <- 1000000  # Adjust this value as needed based on your system's memory capacity
+
+# Calculate total canopy area in chunks
+for (i in seq_len(nrow(fc_2001_cropped) * ncol(fc_2001_cropped) / chunk_size)) {
+    start_idx <- (i - 1) * chunk_size + 1
+    end_idx <- min(i * chunk_size, nrow(fc_2001_cropped) * ncol(fc_2001_cropped))
+    
+    # Extract chunk of raster
+    chunk <- fc_2001_cropped[start_idx:end_idx]
+    
+    # Calculate number of canopy cells in the chunk
+    canopy_cells_count <- sum(chunk == 1)
+    
+    # Add to total canopy area
+    total_canopy_area_m2 <- total_canopy_area_m2 + canopy_cells_count * cell_size_m2
+}
+
+# Convert canopy area from square meters to acres
+total_canopy_area_acres <- total_canopy_area_m2 / 4046.86  # 1 acre = 4046.86 square meters
+
+# Print the total canopy area in acres
+print(total_canopy_area_acres)
+
+
+# Set the projection to UTM zone 21 (EPSG:32621)
+crs(fc_2001_cropped) <- "+proj=utm +zone=21 +datum=WGS84"
+
+# Calculate the area of each cell in square meters
+cell_size_m2 <- cellSize(fc_2001_cropped)
+
+# Calculate the total canopy area in square meters
+total_canopy_cells <- sum(fc_2001_cropped)
+total_canopy_area_m2 <- total_canopy_cells * cell_size_m2
+
+# Convert canopy area from square meters to acres
+total_canopy_area_acres <- total_canopy_area_m2 / 4046.86  # 1 acre = 4046.86 square meters
+
+total_canopy_area_acres
+```
