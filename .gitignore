@@ -175,3 +175,4 @@ cython_debug/
 04-models/X_train.zip
 04-models/y_test.zip
 04-models/y_train.zip
+04-models/brfc_pruned_model.pkl
